@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Users, BookOpen, ArrowRight, Star, Search, DollarSign, Briefcase, ChevronLeft, ExternalLink, Wifi, Shield, Sun, Calendar, MessageSquare, ThumbsUp, Clock, Tag, Send, PlusCircle, User, CheckCircle } from 'lucide-react';
-import { getTopics, replyToTopic, compareCostOfLiving } from '../services/geminiService';
+import { getTopics, replyToTopic, compareCostOfLiving, createTopic } from '../services/geminiService';
 import { useEffect } from 'react';
 
 // --- DESTINATIONS COMPONENTS ---
@@ -156,8 +156,8 @@ const DestinationDetail: React.FC<DestinationDetailProps> = ({ destination, onBa
                     <span>Safety</span>
                   </div>
                   <span className={`font-bold px-2 py-0.5 rounded text-sm ${destination.stats.safety === 'High' ? 'bg-green-100 text-green-700' :
-                      destination.stats.safety === 'Moderate' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
+                    destination.stats.safety === 'Moderate' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
                     }`}>{destination.stats.safety}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -389,11 +389,99 @@ const TopicDetail: React.FC<{ topic: Topic; onBack: () => void }> = ({ topic, on
   );
 }
 
+const CreateTopicModal: React.FC<{ onClose: () => void; onCreated: (topic: Topic) => void }> = ({ onClose, onCreated }) => {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [tags, setTags] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const tagList = tags.split(',').map(t => t.trim()).filter(t => t);
+      const newTopic = await createTopic({
+        title,
+        content,
+        tags: tagList.length > 0 ? tagList : ["General"],
+        author: "You"
+      });
+      onCreated(newTopic);
+      onClose();
+    } catch (error) {
+      console.error("Failed to create topic:", error);
+      alert("Failed to create topic. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl">
+        <h3 className="text-2xl font-bold text-slate-900 mb-6">Create New Topic</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="What's on your mind?"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Content</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none h-32 resize-none"
+              placeholder="Share details..."
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="e.g. Visa, Bali, Coworking"
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-500 hover:text-slate-700 font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? 'Posting...' : 'Create Topic'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export const CommunityPage: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     const fetchTopics = async () => {
@@ -441,7 +529,10 @@ export const CommunityPage: React.FC = () => {
             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow shadow-sm"
           />
         </div>
-        <button className="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2"
+        >
           <PlusCircle className="w-5 h-5" /> New Topic
         </button>
       </div>
@@ -507,6 +598,15 @@ export const CommunityPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <CreateTopicModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={(newTopic) => {
+            setTopics([newTopic, ...topics]);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -558,10 +658,10 @@ const VisaGuideTool = ({ onBack }: { onBack: () => void }) => {
               <span className="font-bold text-slate-800 text-lg">{c.name}</span>
               <div className="text-right">
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-1 ${c.status.toLowerCase().includes('free') || c.status.toLowerCase().includes('exemption')
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : c.status.toLowerCase().includes('arrival')
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-amber-100 text-amber-700'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : c.status.toLowerCase().includes('arrival')
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-amber-100 text-amber-700'
                   }`}>
                   {c.status}
                 </span>
