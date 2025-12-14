@@ -1,0 +1,7 @@
+{
+  "name": "NomadNest",
+  "description": "An AI-powered platform simplifying international travel and relocation with real-time visa, safety, and cultural insights.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
