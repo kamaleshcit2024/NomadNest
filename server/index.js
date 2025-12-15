@@ -1,12 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from 'openai';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 dotenv.config({ path: '../.env.local' }); // Try to read from root .env.local first
-if (!process.env.API_KEY) {
+if (!process.env.OPENAI_API_KEY) {
   dotenv.config(); // Fallback to local .env
 }
 
@@ -27,19 +27,17 @@ app.post('/api/generate-report', async (req, res) => {
   try {
     const { origin, destination, purpose } = req.body;
 
-    if (!process.env.API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: "Server API Key configuration error" });
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const model = "gemini-2.5-flash";
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const model = "gpt-4o-mini";
 
     const prompt = `
       Act as a senior global travel and relocation consultant.
       I need a comprehensive, real-time report for a citizen of "${origin}" traveling to "${destination}" for the purpose of "${purpose}".
       
-      You MUST use Google Search to find the absolute latest regulations, as visa rules change frequently.
-
       Please structure your response into exactly four sections separated by the delimiter "${DELIMITER}".
       
       Structure:
@@ -129,29 +127,17 @@ app.post('/api/generate-report', async (req, res) => {
       Ensure the tone is professional, reassuring, and clear. Use Markdown headers (##, ###), bullet points, and tables where requested.
     `;
 
-    const response = await ai.models.generateContent({
+    const completion = await openai.chat.completions.create({
       model: model,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        temperature: 0.4,
-      },
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
     });
 
-    const text = response.text || "";
+    const text = completion.choices[0].message.content || "";
 
-    // Extract grounding chunks for citations
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const links = chunks
-      .map((chunk) => {
-        if (chunk.web?.uri && chunk.web?.title) {
-          return { title: chunk.web.title, url: chunk.web.uri };
-        }
-        return null;
-      })
-      .filter((link) => link !== null);
-
-    const uniqueLinks = Array.from(new Map(links.map(item => [item.url, item])).values());
+    // OpenAI doesn't provide grounding links in the same way, so we'll omit them or mock them if needed.
+    // For now, we'll return an empty list or static links.
+    const uniqueLinks = [];
     const sections = text.split(DELIMITER);
 
     const report = {
@@ -165,7 +151,7 @@ app.post('/api/generate-report', async (req, res) => {
     res.json(report);
 
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("OpenAI API Error:", error);
     res.status(500).json({ error: "Failed to generate travel report." });
   }
 });
@@ -174,21 +160,35 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { history, message } = req.body;
 
-    if (!process.env.API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: "Server API Key configuration error" });
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const chat = ai.chats.create({
-      model: "gemini-2.5-flash",
-      history: history,
-      config: {
-        systemInstruction: "You are a helpful travel assistant within the NomadNest app. Keep answers concise and helpful."
-      }
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Convert Gemini history format to OpenAI format
+    const messages = [
+      { role: "system", content: "You are a helpful travel assistant within the NomadNest app. Keep answers concise and helpful." }
+    ];
+
+    if (history && Array.isArray(history)) {
+      history.forEach(item => {
+        const role = item.role === 'model' ? 'assistant' : 'user';
+        const content = item.parts && item.parts[0] ? item.parts[0].text : '';
+        if (content) {
+          messages.push({ role, content });
+        }
+      });
+    }
+
+    messages.push({ role: "user", content: message });
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: messages,
     });
 
-    const result = await chat.sendMessage({ message });
-    res.json({ text: result.text });
+    res.json({ text: completion.choices[0].message.content });
 
   } catch (error) {
     console.error("Chat API Error:", error);
@@ -313,12 +313,12 @@ app.post('/api/cost-calculator', async (req, res) => {
   try {
     const { cityA, cityB } = req.body;
 
-    if (!process.env.API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: "Server API Key configuration error" });
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const model = "gemini-2.5-flash";
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const model = "gpt-4o-mini";
 
     const prompt = `
             Compare the cost of living between "${cityA}" and "${cityB}".
@@ -332,15 +332,13 @@ app.post('/api/cost-calculator', async (req, res) => {
             }
         `;
 
-    const response = await ai.models.generateContent({
+    const completion = await openai.chat.completions.create({
       model: model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
     });
 
-    const text = response.text || "{}";
+    const text = completion.choices[0].message.content || "{}";
     const data = JSON.parse(text);
     res.json(data);
 

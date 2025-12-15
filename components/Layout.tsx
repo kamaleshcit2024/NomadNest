@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { PageView } from '../types';
 
 interface LayoutProps {
@@ -179,14 +179,14 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate }) =>
     <div className="min-h-screen flex flex-col bg-slate-50">
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
+          <div className="flex justify-between h-auto py-4">
             <div className="flex items-center">
               <div
-                className="flex-shrink-0 flex items-center gap-2 cursor-pointer"
+                className="flex-shrink-0 flex items-center gap-4 cursor-pointer group"
                 onClick={() => onNavigate('HOME')}
               >
-                <Globe className="h-8 w-8 text-indigo-600" />
-                <span className="font-bold text-xl text-slate-900 tracking-tight">NomadNest</span>
+                <img src="/logo.png" alt="NomadNest Logo" className="h-32 w-auto object-contain group-hover:opacity-90 transition-opacity" />
+                <span className="font-bold text-4xl text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">NomadNest</span>
               </div>
             </div>
 
@@ -269,7 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate }) =>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <Globe className="h-6 w-6 text-indigo-400" />
+              <img src="/logo.png" alt="NomadNest Logo" className="h-24 w-auto object-contain" />
               <span className="font-bold text-lg text-white">NomadNest</span>
             </div>
             <p className="text-sm leading-relaxed max-w-sm">
